@@ -1,6 +1,10 @@
 
-renv_package_find <- function(package, libpaths = renv_libpaths_all()) {
-
+# attempt to find a package 'package' from source 'source' in a set of
+# library paths
+renv_package_find <- function(package,
+                              source = "CRAN",
+                              libpaths = renv_libpaths_all())
+{
   # first, look in the library paths (specifiy lib.loc so that we avoid
   # using the path to loaded namespaces)
   location <- find.package(package, quiet = TRUE, lib.loc = libpaths) %||% ""
@@ -24,15 +28,17 @@ renv_package_find <- function(package, libpaths = renv_libpaths_all()) {
   if (length(hashes) == 0)
     return("")
 
-  # TODO: how to select if we have multiple hashed copies for this version?
-  if (length(hashes) != 1) {
-    fmt <- lines(
-      "Multiple hashed copies of %s [%s] detected.",
-      "The version with hash '%s' will be used."
-    )
-    warningf(fmt, package, version, hashes[[1]])
-  }
+  # figure out the sources for these packages
+  paths <- file.path(location, version, hashes, package)
+  descs <- lapply(paths, renv_description_read)
+  types <- map_chr(descs, renv_snapshot_description_source)
 
-  file.path(location, version, hashes[[1]], package)
+  # keep the entries that match the requested source
+  keep <- paths[tolower(types) == tolower(source)]
+  if (empty(keep))
+    return("")
+
+  # TODO: should we notify user if multiple versions of this package were found?
+  keep[[1]]
 
 }
